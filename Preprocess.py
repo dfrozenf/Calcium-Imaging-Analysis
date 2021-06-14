@@ -17,17 +17,21 @@ pad = 30  # Needed to avoid falling off the function for signals near start and 
 
 
 def read(filepath, cell):
+#Given the filepath of the imageJ output and a selected roi number (can be iterated through), return a list of deltaF/F0 values observed in the roi
     with open(filepath, 'r') as f:
         input = f.readlines()
     input = [i.rstrip().split(sep=',') for i in input]
     frames = [int(i[0]) for i in input]
     bins = [float(i[1]) for i in input]
     signal = [float(i[cell + 1]) for i in input]
-
+#frames is a numbered list that we can use as a timeseries while plotting calcium signals
+#bins is the 0 cell, by convention the 0-th roi will contain background signal, used to calculate light stimulus timing
+#signal is the actual observed deltaF/F0 observed in a given recording
     return frames, bins, signal
 
 
 def differ(signal, kernel, bins):
+#Given a raw signal, the light stimulus, and a kernel for filtering, return a median filtered raw signal and the first & second derivatives of the filtered signal
     signal = np.pad(signal, pad_width=pad, mode='edge')
     zsignal = medfilt(signal, kernel)
     dsignal = np.gradient(zsignal)
@@ -36,19 +40,24 @@ def differ(signal, kernel, bins):
     bins = np.pad(bins, pad_width=pad, mode='edge')
     dbins = np.gradient(bins)
     #    ddbins = np.gradient(dbins)
-
+#zsignal refers to the median filtered raw signal
+#dsignal refers to the first derivative of the zsignal
+#ddsignal refers to the second derivative of the zsignal
+#dbins refers to the derivative of the light stimulus signal
     return signal, zsignal, dsignal, ddsignal, dbins
 
 
 def thresholder(q, dsignal):
+#Given some multiplier q (optimal value in citation was 4.5), calculate a threshold based off of mean deviation
     abs_dsignal = [abs(i) for i in dsignal]
     md = np.sum(abs_dsignal)/len(abs_dsignal)
     threshold = q * md
-
+#threshold provides the nevessary deltaF/F0 threshold for our peakfinding function
     return threshold
 
 
 def aligner(thresh, dsignal, signal, ddsignal, dist=3):  # Set to 2 seconds
+#Given the calculated threshold, find peaks around a 2 second window and return alignment of the zsignal, d
     pivots = find_peaks(dsignal, height=thresh, distance=dist)[0]
 
     align = np.zeros(len(pivots) * 60).reshape(len(pivots), 60)
@@ -59,11 +68,12 @@ def aligner(thresh, dsignal, signal, ddsignal, dist=3):  # Set to 2 seconds
         align[i] = [signal[i] for i in range(int(pivots[i]) - 30, pivots[i] + 30)]
         dalign[i] = [dsignal[i] for i in range(int(pivots[i]) - 30, pivots[i] + 30)]
         ddalign[i] = [ddsignal[i] for i in range(int(pivots[i]) - 30, pivots[i] + 30)]
-
+#align, dalign, and ddalign are n x 60 matrices, each row holding the filtered, 1st derivative, and 2nd derivative values of an individual spike
     return align, dalign, ddalign, pivots
 
 
 def meanfunc(align, dalign, ddalign):
+#Find the mean curve of the filtered, 1st derivative, and 2nd derivative calcium signals for plotting purposes
     mean = align[0]
     dmean = dalign[0]
     ddmean = ddalign[0]
@@ -76,11 +86,13 @@ def meanfunc(align, dalign, ddalign):
     mean = mean / len(align)
     dmean = dmean / len(dalign)
     ddmean = ddmean / len(ddalign)
-
-    return mean, dmean, ddmean,
+#mean, dmean, and ddmean are each a 1x60 array containing the mean value of the filtered, 1st derivative, and 2nd derivative deltaF/F0 respectively
+    return mean, dmean, ddmean
 
 
 def point_extract(dsignal):
+#Given our chosen feature space, extract points P1, P2, P3, and P4 where P1 is the zero crossing before P2, 
+#P2 is the peak of the signal, P3 is the zero crossing between P2 and P4, and P4 is the valley of the calcium signal
     zeros = np.where(np.diff(np.sign(dsignal)))[0]
 
     if max(zeros) <= 30:
@@ -111,13 +123,13 @@ def point_extract(dsignal):
         p4 = find_peaks(slice, distance=len(slice))[0][0] + p2
     except IndexError:
         p4 = -9999
-
+#Returns a length-4 list of the indices containing P1,P2,P3, and P4 in an aligned signal
     return [p1, p2, p3, p4]
 
 
 def feature_extract(signal, dsignal, points):
     # TODO: Add roi size to PCA
-
+#Extract features specified in 
     if -9999 in points:
         return []
     P1 = points[0]
