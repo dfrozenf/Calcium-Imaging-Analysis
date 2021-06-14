@@ -69,6 +69,7 @@ def aligner(thresh, dsignal, signal, ddsignal, dist=3):  # Set to 2 seconds
         dalign[i] = [dsignal[i] for i in range(int(pivots[i]) - 30, pivots[i] + 30)]
         ddalign[i] = [ddsignal[i] for i in range(int(pivots[i]) - 30, pivots[i] + 30)]
 #align, dalign, and ddalign are n x 60 matrices, each row holding the filtered, 1st derivative, and 2nd derivative values of an individual spike
+#pivots gives us a global reference that we need to refer back from alignments when calcualting latency
     return align, dalign, ddalign, pivots
 
 
@@ -129,7 +130,7 @@ def point_extract(dsignal):
 
 def feature_extract(signal, dsignal, points):
     # TODO: Add roi size to PCA
-#Extract features specified in 
+#Extract features specified in features.docm from an aligned signal 
     if -9999 in points:
         return []
     P1 = points[0]
@@ -166,13 +167,13 @@ def feature_extract(signal, dsignal, points):
 
 Features = []
 
-for z in range(1, 614):
-
-    frames, bins, signal = read(filepath, z)
-    signal, zsignal, dsignal, ddsignal, dbins = differ(signal, 3, bins)
-    timeon = find_peaks(dbins, distance=pad * 2)[0]
-    nbins = len(timeon)
-    thresh = thresholder(4.5, dsignal)
+for z in range(1, 614): #Iterate through the number of roi's
+#TODO: add a method for automatically adjusting this iterator
+    frames, bins, signal = read(filepath, z) #Read an roi's signal from the imageJ output
+    signal, zsignal, dsignal, ddsignal, dbins = differ(signal, 3, bins) #Filter and differentiate the raw signal
+    timeon = find_peaks(dbins, distance=pad * 2)[0] #Find the light timings for latency calculation
+    nbins = len(timeon) #Determine the number of light stimulus in a recording
+    thresh = thresholder(4.5, dsignal) #Calculate a threshold for 1-st derivative based alignment and feature extraction
 
     #fig, (ax1, ax2) = plt.subplots(1,2)
     #ax1.hlines(thresh, xmin=0, xmax=len(dsignal))
@@ -180,15 +181,15 @@ for z in range(1, 614):
     #ax2.plot([i for i in range(len(zsignal))], zsignal)
     #plt.show()
 
-    align, dalign, ddalign, pivots = aligner(thresh, dsignal, signal, ddsignal)
-    if len(align) != 0:
+    align, dalign, ddalign, pivots = aligner(thresh, dsignal, signal, ddsignal) #Align signal and derivatives
+    if len(align) != 0: #Error check for an roi containing no signals
         mean, dmean, ddmean = meanfunc(align, dalign, ddalign)
 
         point_names = ['P1', 'P2', 'P3', 'P4']
 
         #fig, (ax1, ax2) = plt.subplots(1, 2)
 
-        for i in range(len(pivots)):
+        for i in range(len(pivots)): #Extract all features for each signal in an alignment and append it to a global features matrix
             points = point_extract(dalign[i])
             features = feature_extract(align[i], dalign[i], points)
             light = [j for j in timeon if j <= pivots[i]]
