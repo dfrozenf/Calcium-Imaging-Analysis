@@ -12,13 +12,15 @@ File input format: A .csv file where each column contains a separate roi's delta
 
 
 """
-filepath = 'C:/Users/User/Desktop/Calcium Image/Test/Results.csv'  # Specify the filepath of your imageJ output
+filepath = 'C:/Users/Daniel Frozenfar/Desktop/Calcium/rd1-Thy1-G6s/Results.csv'  # Specify the filepath of your imageJ output
+roipath = 'C:/Users/Daniel Frozenfar/Desktop/Calcium/rd1-Thy1-G6s/ROI.csv'
 pad = 30  # Needed to avoid falling off the function for signals near start and end of recording
 
 
 def read(filepath, cell):
 #Given the filepath of the imageJ output and a selected roi number (can be iterated through), return a list of deltaF/F0 values observed in the roi
     with open(filepath, 'r') as f:
+        f.readline()
         input = f.readlines()
     input = [i.rstrip().split(sep=',') for i in input]
     frames = [int(i[0]) for i in input]
@@ -29,6 +31,11 @@ def read(filepath, cell):
 #signal is the actual observed deltaF/F0 observed in a given recording
     return frames, bins, signal
 
+with open(filepath, 'r') as f:
+    f.readline()
+    n_roi = f.readline()
+    n_roi = [i for i in n_roi.rstrip().split(sep=',')]
+n_roi = len(n_roi) - 1
 
 def differ(signal, kernel, bins):
 #Given a raw signal, the light stimulus, and a kernel for filtering, return a median filtered raw signal and the first & second derivatives of the filtered signal
@@ -65,7 +72,7 @@ def aligner(thresh, dsignal, signal, ddsignal, dist=3):  # Set to 2 seconds
     ddalign = np.zeros(len(pivots) * 60).reshape(len(pivots), 60)
 
     for i in range(len(pivots)):
-        align[i] = [signal[i] for i in range(int(pivots[i]) - 30, pivots[i] + 30)]
+        align[i] = [zsignal[i] for i in range(int(pivots[i]) - 30, pivots[i] + 30)]
         dalign[i] = [dsignal[i] for i in range(int(pivots[i]) - 30, pivots[i] + 30)]
         ddalign[i] = [ddsignal[i] for i in range(int(pivots[i]) - 30, pivots[i] + 30)]
 #align, dalign, and ddalign are n x 60 matrices, each row holding the filtered, 1st derivative, and 2nd derivative values of an individual spike
@@ -129,8 +136,7 @@ def point_extract(dsignal):
 
 
 def feature_extract(signal, dsignal, points):
-    # TODO: Add roi size to PCA
-#Extract features specified in features.docm from an aligned signal 
+#Extract features specified in features.docm from an aligned signal
     if -9999 in points:
         return []
     P1 = points[0]
@@ -167,19 +173,57 @@ def feature_extract(signal, dsignal, points):
 
 Features = []
 
-for z in range(1, 614): #Iterate through the number of roi's
+for z in range(1, n_roi): #Iterate through the number of roi's
 #TODO: add a method for automatically adjusting this iterator
+
+    fig, axs = plt.subplots(1, 3)
+
+    with open(roipath) as f:
+        f.readline()
+        area = f.readline().split(sep=',')
+    area = [int(i.rstrip()) for i in area]
+    area = area[z]
+
     frames, bins, signal = read(filepath, z) #Read an roi's signal from the imageJ output
     signal, zsignal, dsignal, ddsignal, dbins = differ(signal, 3, bins) #Filter and differentiate the raw signal
     timeon = find_peaks(dbins, distance=pad * 2)[0] #Find the light timings for latency calculation
     nbins = len(timeon) #Determine the number of light stimulus in a recording
     thresh = thresholder(4.5, dsignal) #Calculate a threshold for 1-st derivative based alignment and feature extraction
 
+    axs[0].plot([i for i in range(len(zsignal))], zsignal, linewidth=0.5)
+    axs[0].set_xlim(30, 330)
+    axs[0].set_ylim(0, 1.5)
+    axs[0].set_ylabel('DeltaF/F0')
+    axs[0].set_xlabel('Time (Frames)')
+    axs[0].title.set_text('Raw Signal')
+
+    axs[1].plot([i for i in range(len(dsignal))], dsignal, linewidth=0.5)
+    axs[1].hlines(thresh, xmin = 0, xmax=len(dsignal), color='r', linestyles='dotted')
+    axs[1].title.set_text('First Derivative')
+    axs[1].set_xlim(30, 330)
+    axs[1].set_ylim(-0.75, 1.2)
+    axs[1].set_ylabel('d(DeltaF/F0)/dt')
+    axs[1].set_xlabel('Time (Frames)')
+
+    axs[2].plot(zsignal[30:331], dsignal[30:331], linewidth=0.5)
+    axs[2].title.set_text('Phase Plot')
+    axs[2].set_xlim(0, 1.5)
+    axs[2].set_ylim(-1.2, 1.2)
+    axs[2].set_xlabel('DeltaF/F0')
+    axs[2].set_ylabel('d(DeltaF/F0)/dt')
+
+    plt.show()
+
     #fig, (ax1, ax2) = plt.subplots(1,2)
     #ax1.hlines(thresh, xmin=0, xmax=len(dsignal))
     #ax1.plot([i for i in range(len(dsignal))], dsignal)
     #ax2.plot([i for i in range(len(zsignal))], zsignal)
     #plt.show()
+
+    trim = (timeon[0]+timeon[1])//2
+    signal = signal[trim:]
+    dsignal = dsignal[trim:]
+    ddsignal = ddsignal[trim:]
 
     align, dalign, ddalign, pivots = aligner(thresh, dsignal, signal, ddsignal) #Align signal and derivatives
     if len(align) != 0: #Error check for an roi containing no signals
@@ -201,9 +245,12 @@ for z in range(1, 614): #Iterate through the number of roi's
             else:
                 latency = pivots[i] - light[-1]
 
+            features.append(area)
+
             features.append(latency)
             features.append(z)
             features.append(i)
+            features[-2] = features[-2] + features[-1]/10
             print(features)
             Features.append(features)
             print('Feature extraction completed on roi {}, signal {}'.format(z, i))
@@ -212,56 +259,8 @@ for z in range(1, 614): #Iterate through the number of roi's
         #plt.show()
 i = 0
 while i < len(Features):
-    if len(Features[i]) != 14:
+    if len(Features[i]) != 15:
         Features.pop(i)
     i += 1
 
-np.savetxt('C:/Users/User/Desktop/calciumdump.csv', Features, delimiter=',', newline='\n')
-
-
-def plot_align(dmean=dmean, dalign=dalign):
-    for i in dalign:
-        plt.plot([j for j in range(len(i))], i, alpha=0.5, color='grey')
-    plt.plot([i for i in range(len(dmean))], dmean, alpha=0.8, color='black')
-    d = interp1d([i for i in range(len(dmean))], dmean)
-    for i in range(len(points)):
-        plt.plot(points[i], d(points[i]), 'bo')
-        plt.text(points[i], d(points[i]), point_names[i])
-    plt.title('Aligned delF/F FD')
-    plt.hlines(0, xmin=0, xmax=len(dmean))
-    plt.show()
-
-
-def plot_mean(signal=signal, dsignal=dsignal, timeon=timeon, mean=mean, dmean=dmean, ddmean=ddmean):
-    plt.plot([i for i in range(len(signal))], signal)
-    plt.vlines(timeon, ymin=min(signal), ymax=max(signal), linestyle='dashed', color='yellow')
-    plt.show()
-
-    plt.plot([i for i in range(len(dsignal))], dsignal)
-    plt.hlines(thresh, xmin=0, xmax=len(dsignal))
-    plt.title('delF/F FD signal, threshold={}'.format(thresh))
-    plt.show()
-
-    for i in align:
-        plt.plot([j for j in range(len(i))], i, alpha=0.5, color='grey')
-    plt.plot([i for i in range(len(mean))], mean, alpha=0.8, color='black')
-    # plt.plot([i for i in range(len(zmean))], zmean, alpha=1, color='red')
-    plt.title('Aligned delF/F')
-    plt.show()
-
-    for i in dalign:
-        plt.plot([j for j in range(len(i))], i, alpha=0.5, color='grey')
-    plt.plot([i for i in range(len(dmean))], dmean, alpha=0.8, color='black')
-    d = interp1d([i for i in range(len(dmean))], dmean)
-    for i in range(len(points)):
-        plt.plot(points[i], d(points[i]), 'bo')
-        plt.text(points[i], d(points[i]), point_names[i])
-    plt.title('Aligned delF/F FD')
-    plt.hlines(0, xmin=0, xmax=len(dmean))
-    plt.show()
-
-    plt.plot([i for i in range(len(ddmean))], ddmean)
-    plt.title('Aligned delF/F SD')
-    plt.show()
-
-# plot_align()
+np.savetxt('C:/Users/Daniel Frozenfar/Desktop/calciumdump.csv', Features, delimiter=',', newline='\n')

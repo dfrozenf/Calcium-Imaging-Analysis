@@ -3,8 +3,8 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from pca import pca
 
-nFeatures = 12
-features = 'C:/Users/User/Desktop/calciumdump.csv'
+nFeatures = 13
+features = 'C:/Users/Daniel Frozenfar/Desktop/calciumdump.csv'
 feature_names = ['F{}'.format(i+1) for i in range(nFeatures)]
 id = []
 
@@ -36,10 +36,13 @@ sfeatures = scaler.transform(features)
 
 sfeatures = pd.DataFrame(sfeatures, index = id, columns=feature_names) #Convert to a Pandas dataframe, so that we can place feature names on loadings in our biplot
 
-model = pca(n_components=0.95) #Set a 95% variance threshold for our PCA
+model = pca(n_components=0.95, alpha = 0.05) #Set a 95% variance threshold for our PCA
 results = model.fit_transform(sfeatures, col_labels=feature_names) #Calcualte principle component coordinates 
 fig, ax = model.plot() #Build a variance plot
 fig, ax = model.scatter3d(legend=False)
 fig, ax = model.biplot3d(n_feat=nFeatures, legend=False) #Build a biplot containing flattened signals and loadings
 
 #TODO: Use all cells and subset outliers for another pca
+
+output = results['PC']
+output.to_csv('C:/Users/Daniel Frozenfar/Desktop/PCtransform.csv')
