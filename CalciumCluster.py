@@ -110,12 +110,12 @@ plt.xlabel('DeltaF/F0')
 plt.xscale('symlog')
 plt.show()
 
-eps= 0.25
+eps= 0.4
 
 cl_0 = np.array(rdp([[cluster_0[0][i], dcluster_0[0][i]] for i in range(len(cluster_0[0]))], epsilon=eps)).transpose()
 cl_1 = np.array(rdp([[cluster_1[0][i], dcluster_1[0][i]] for i in range(len(cluster_1[0]))], epsilon=eps)).transpose()
 
-plt.title('Clustering Results')
+plt.title('Clustering Results using rdp decimation')
 plt.ylabel('First Derivative of DeltaF/F0 w.r.t. Time')
 plt.xlabel('DeltaF/F0')
 plt.xscale('symlog')
@@ -125,9 +125,21 @@ plt.legend()
 plt.show()
 
 
-#plt.plot(cluster_0, dcluster_0, c='lightcoral')
-#plt.plot(cluster_1, dcluster_1, c='skyblue')
-#plt.title('Average phase of each cluster')
-#plt.ylabel('First Derivative of DeltaF/F0 w.r.t. Time')
-#plt.xlabel('DeltaF/F0')
-#plt.show()
+cluster_0 = cluster_0.reshape(len(cluster_0[0])//60, 60)
+dcluster_0 = dcluster_0.reshape(len(dcluster_0[0])//60, 60)
+cluster_1 = cluster_1.reshape(len(cluster_1[0])//60, 60)
+dcluster_1 = dcluster_1.reshape(len(dcluster_1[0])//60, 60)
+
+cluster_0 = np.mean(cluster_0, axis=0)
+dcluster_0 = np.mean(dcluster_0, axis=0)
+cluster_1 = np.mean(cluster_1, axis=0)
+dcluster_1 = np.mean(dcluster_1, axis=0)
+
+plt.title('Clustering Results using average')
+plt.ylabel('First Derivative of DeltaF/F0 w.r.t. Time')
+plt.xlabel('DeltaF/F0')
+plt.xscale('symlog')
+plt.plot(cluster_0, dcluster_0, c='lightcoral', linewidth=0.5, alpha=0.8, label='Cluster 1')
+plt.plot(cluster_1, dcluster_1, c='skyblue', linewidth=0.5, alpha=0.8, label='Cluster 2')
+plt.legend()
+plt.show()
