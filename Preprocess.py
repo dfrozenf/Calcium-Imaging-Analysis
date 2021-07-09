@@ -206,7 +206,8 @@ for z in range(1, n_roi): #Iterate through the number of roi's
     axs[1].set_ylabel('d(DeltaF/F0)/dt')
     axs[1].set_xlabel('Time (Frames)')
 
-    axs[2].plot(zsignal[30:331], dsignal[30:331], linewidth=0.5)
+    for i in range(len(align)):
+      axs[2].plot(align[i], dalign[i], linewidth=0.5)
     axs[2].title.set_text('Phase Plot')
     axs[2].set_xlim(0, 1.5)
     axs[2].set_ylim(-1.2, 1.2)
