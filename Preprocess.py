@@ -8,7 +8,8 @@ from sklearn.linear_model import LinearRegression
 """
 Reads in imageJ outputs and dumps the extracted features into a csv for PCA
 File input format: A .csv file where each column contains a separate roi's deltaF/F0 signal. 
-                   First column is a numbered list used for frame count, no headers
+                   First column is a numbered list used for frame count, needs headers
+                   Another .csv file where each column contains the area of the respective ROI
 
 
 """
